@@ -1,8 +1,11 @@
+import { useStrapi } from "@/providers/StrapiProvider";
+import { UserCourses } from "@/types/interfaces";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -15,8 +18,23 @@ export default function DashboardUi() {
   const { signOut } = useAuth();
   const { user } = useUser();
   const router = useRouter();
-
+  const { getUserCourses } = useStrapi();
+  const [enrolledCourses, setEnrolledCourses] = useState<UserCourses[]>([]);
+  const [loadingEnrolled, setLoadingEnrolled] = useState(true);
+  const [selectedSection, setSelectedSection] = useState<"home" | "enrolled">(
+    "home"
+  );
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
+
+  useEffect(() => {
+    if (selectedSection === "enrolled") {
+      setLoadingEnrolled(true);
+      getUserCourses()
+        .then((courses) => setEnrolledCourses(courses))
+        .catch(() => setEnrolledCourses([]))
+        .finally(() => setLoadingEnrolled(false));
+    }
+  }, [selectedSection]);
 
   return (
     <View className="flex-1 flex-col md:flex-row bg-[#f6fbff]">
@@ -26,18 +44,28 @@ export default function DashboardUi() {
         <View className="flex-row items-center mb-8">
           <Image
             source={require("@/assets/images/logo-edu.png")}
-            style={{
-              width: 100,
-              height: 60,
-            }}
+            style={{ width: 100, height: 60 }}
             resizeMode="contain"
           />
         </View>
         {/* Sidebar Menu */}
         <View className="space-y-2">
-          <TouchableOpacity className="flex-row items-center bg-[#e3f0fa] rounded-lg px-3 py-2">
-            <Ionicons name="home-outline" size={20} color="#2D7FF9" />
-            <Text className="ml-3 text-base font-semibold text-[#2D7FF9]">
+          <TouchableOpacity
+            className={`flex-row items-center rounded-lg px-3 py-2 ${
+              selectedSection === "home" ? "bg-[#e3f0fa]" : ""
+            }`}
+            onPress={() => setSelectedSection("home")}
+          >
+            <Ionicons
+              name="home-outline"
+              size={20}
+              color={selectedSection === "home" ? "#2D7FF9" : "#222"}
+            />
+            <Text
+              className={`ml-3 text-base font-semibold ${
+                selectedSection === "home" ? "text-[#2D7FF9]" : "text-[#222]"
+              }`}
+            >
               Home
             </Text>
           </TouchableOpacity>
@@ -45,9 +73,26 @@ export default function DashboardUi() {
             <Feather name="compass" size={20} color="#222" />
             <Text className="ml-3 text-base text-[#222]">Explore Courses</Text>
           </TouchableOpacity>
-          <TouchableOpacity className="flex-row items-center px-3 py-2">
-            <Ionicons name="git-compare-outline" size={20} color="#222" />
-            <Text className="ml-3 text-base text-[#222]">Compare Courses</Text>
+          <TouchableOpacity
+            className={`flex-row items-center rounded-lg px-3 py-2 ${
+              selectedSection === "enrolled" ? "bg-[#e3f0fa]" : ""
+            }`}
+            onPress={() => setSelectedSection("enrolled")}
+          >
+            <Ionicons
+              name="book-outline"
+              size={20}
+              color={selectedSection === "enrolled" ? "#2D7FF9" : "#222"}
+            />
+            <Text
+              className={`ml-3 text-base font-semibold ${
+                selectedSection === "enrolled"
+                  ? "text-[#2D7FF9]"
+                  : "text-[#222]"
+              }`}
+            >
+              Enrolled Courses
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity className="flex-row items-center px-3 py-2">
             <Ionicons name="cart-outline" size={20} color="#222" />
@@ -58,6 +103,47 @@ export default function DashboardUi() {
             <Text className="ml-3 text-base text-[#222]">Settings</Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Profile section top right (desktop only) */}
+      <View className="hidden md:flex absolute right-12 top-8 z-50 flex-row items-center">
+        <Pressable
+          className="flex-row items-center px-2 py-1 rounded-lg bg-white shadow border border-gray-100"
+          onPress={() => setDropdownOpen((open) => !open)}
+        >
+          {user?.imageUrl ? (
+            <Image
+              source={{ uri: user.imageUrl }}
+              className="w-7 h-7 rounded-full mr-2"
+            />
+          ) : (
+            <View className="w-7 h-7 bg-gray-300 rounded-full mr-2" />
+          )}
+          <Text className="font-semibold text-[#222] text-sm">
+            {user?.fullName || user?.username || user?.firstName || "User"}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color="#888"
+            className="ml-1"
+          />
+        </Pressable>
+        {dropdownOpen && (
+          <View className="absolute right-0 top-12 bg-white rounded-lg shadow-lg border border-gray-100 z-50 min-w-[140px]">
+            <TouchableOpacity
+              className="flex-row items-center px-4 py-3"
+              onPress={async () => {
+                setDropdownOpen(false);
+                await signOut();
+                router.replace("/");
+              }}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+              <Text className="ml-2 text-[#EF4444] font-semibold">Logout</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Mobile Header */}
@@ -128,248 +214,233 @@ export default function DashboardUi() {
 
       {/* Main Content */}
       <ScrollView className="flex-1 px-4 md:px-12 py-6">
-        {/* Add spacing from top for mobile */}
-        <View className="block md:hidden" style={{ marginTop: 8 }} />
-
-        {/* Header (desktop only) */}
-        <View className="hidden md:flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-          <View>
-            <Text className="text-2xl md:text-3xl font-bold text-gray-900">
-              Welcome back, {user?.username || user?.firstName || "User"}!{" "}
-              <Text className="text-2xl">👋</Text>
+        {/* Only show Enrolled Courses OR Home, never both */}
+        {selectedSection === "enrolled" ? (
+          <View className="mb-10">
+            <Text className="text-2xl font-bold mb-6 text-[#2D7FF9] px-2 md:px-12 text-center">
+              Enrolled Courses
             </Text>
-            <Text className="text-base text-gray-500 mt-1">
-              Continue your learning journey from where you left off
-            </Text>
-          </View>
-          {/* User Info */}
-          <View className="flex-row items-center mt-4 md:mt-0 relative">
-            <TouchableOpacity className="mr-4">
-              <Ionicons name="notifications-outline" size={22} color="#222" />
-            </TouchableOpacity>
-            <TouchableOpacity className="mr-4">
-              <Ionicons name="help-circle-outline" size={22} color="#222" />
-            </TouchableOpacity>
-            <Pressable
-              className="flex-row items-center px-3 py-2 rounded-lg"
-              onPress={() => setDropdownOpen((open) => !open)}
-            >
-              {user?.imageUrl ? (
-                <Image
-                  source={{ uri: user.imageUrl }}
-                  className="w-8 h-8 rounded-full mr-2"
-                />
-              ) : (
-                <View className="w-8 h-8 bg-gray-300 rounded-full mr-2" />
-              )}
-              <View>
-                <Text className="font-semibold text-[#222] text-sm">
-                  {user?.username || user?.firstName || "User"}
-                </Text>
-                <Text className="text-xs text-gray-400">User Account</Text>
+            {loadingEnrolled ? (
+              <View className="items-center justify-center py-10">
+                <ActivityIndicator size="large" />
               </View>
-              <Ionicons
-                name="chevron-down"
-                size={18}
-                color="#888"
-                className="ml-2"
-              />
-            </Pressable>
-            {dropdownOpen && (
-              <View className="absolute right-0 top-12 bg-white rounded-lg shadow-lg border border-gray-100 z-50 min-w-[160px]">
-                <TouchableOpacity
-                  className="flex-row items-center px-4 py-3"
-                  onPress={async () => {
-                    setDropdownOpen(false);
-                    await signOut();
-                    router.replace("/");
-                  }}
-                >
-                  <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-                  <Text className="ml-2 text-[#EF4444] font-semibold">
-                    Logout
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            ) : enrolledCourses.length === 0 ? (
+              <Text className="text-center text-gray-500">
+                You have not enrolled in any courses yet.
+              </Text>
+            ) : (
+              <ScrollView
+                horizontal={false}
+                showsVerticalScrollIndicator={false}
+              >
+                <View className="flex-row flex-wrap justify-center gap-4">
+                  {enrolledCourses.map((uc) => {
+                    const course = uc.course;
+                    // Robust image extraction logic for both string and object
+                    let imgUrl: string | undefined = undefined;
+                    if (
+                      course.image &&
+                      typeof course.image === "object" &&
+                      course.image.url
+                    ) {
+                      imgUrl = course.image.url.startsWith("http")
+                        ? course.image.url
+                        : `http://192.168.31.180:1337${course.image.url}`;
+                    } else if (
+                      course.image &&
+                      typeof course.image === "object" &&
+                      course.image.formats?.thumbnail?.url
+                    ) {
+                      imgUrl = `http://192.168.31.180:1337${course.image.formats.thumbnail.url}`;
+                    } else if (
+                      typeof course.image === "string" &&
+                      course.image.startsWith("http")
+                    ) {
+                      imgUrl = course.image;
+                    } else if (
+                      typeof course.image === "string" &&
+                      course.image.length > 0
+                    ) {
+                      imgUrl = `http://192.168.31.180:1337${course.image}`;
+                    } else {
+                      imgUrl = undefined;
+                    }
+                    // Fallbacks for category/price
+                    const category = (course as any).category || "";
+                    const price = (course as any).price || "";
+                    return (
+                      <TouchableOpacity
+                        key={uc.id}
+                        activeOpacity={0.9}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/courses/[slug]",
+                            params: { slug: course.slug },
+                          })
+                        }
+                        className="flex-1 max-w-[350px] min-w-[280px] mx-2 bg-white rounded-2xl border border-dashed border-[#B9B9B9] p-0 shadow-sm"
+                      >
+                        {/* Course Image */}
+                        <View className="relative w-full h-40 rounded-t-2xl overflow-hidden">
+                          {imgUrl && (
+                            <Image
+                              source={
+                                typeof imgUrl === "string"
+                                  ? { uri: imgUrl }
+                                  : imgUrl
+                              }
+                              className="w-full h-full"
+                              resizeMode="cover"
+                            />
+                          )}
+                          {category ? (
+                            <View className="absolute left-3 top-3 bg-[#23235F] px-3 py-1 rounded-lg">
+                              <Text className="text-xs text-white font-semibold">
+                                {category.toUpperCase()}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        {/* Card Content */}
+                        <View className="px-4 pt-4 pb-2">
+                          <Text className="text-[#23235F] font-bold text-lg mb-2">
+                            {course.title}
+                          </Text>
+                          <Text className="text-[#B9B9B9] text-xs mb-2">
+                            Progress: {uc.finished_percentage || 0}%
+                          </Text>
+                          <View className="flex-row items-center justify-between bg-[#F7F7FB] rounded-lg px-3 py-2 mb-4">
+                            <Text className="text-[#23235F] text-xs">
+                              {course.lessons?.length || 0} Lessons
+                            </Text>
+                            <Text className="text-[#23235F] text-xs">
+                              {price ? `₹${price}` : "Free"}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            className="bg-[#23235F] rounded-full px-6 py-2 mt-2"
+                            onPress={() =>
+                              router.push({
+                                pathname: "/courses/[slug]",
+                                params: { slug: course.slug },
+                              })
+                            }
+                          >
+                            <Text className="text-white font-semibold text-sm">
+                              Continue →
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
             )}
           </View>
-        </View>
-
-        {/* Add spacing here */}
-        <View className="h-6" />
-
-        {/* Stats */}
-        <View
-          className="
-          flex-col md:flex-row
-          md:space-x-4
-          space-y-4 md:space-y-0
-          mb-8
-        "
-        >
-          {/* Mobile: 2 columns, 2 rows */}
-          <View className="block md:hidden">
-            <View className="flex-row space-x-4 mb-4">
-              <View className="flex-1 bg-white border border-[#e3f0fa] rounded-xl p-5 items-center">
-                <Ionicons name="time-outline" size={28} color="#2D7FF9" />
-                <Text className="text-2xl font-bold text-[#222] mt-2">
-                  12.5h
-                </Text>
-                <Text className="text-xs text-gray-500 mt-1">
-                  Learning time
-                </Text>
-                <Text className="text-xs text-gray-400 mt-1">This week</Text>
+        ) : (
+          <>
+            {/* Dashboard Home content (stats, continue learning, etc) goes here. Remove Enrolled Courses from here. */}
+            <View className="mb-10">
+              <Text className="text-2xl font-bold mb-6 text-[#2D7FF9] px-2 md:px-12 text-center">
+                {`Welcome to your Dashboard${
+                  user?.fullName ? ", " + user.fullName : ""
+                }`}
+              </Text>
+              <View className="flex flex-row flex-wrap justify-center gap-8 mb-8">
+                <View className="bg-white rounded-2xl shadow p-6 min-w-[180px] max-w-[260px] flex-1 items-center">
+                  <Text className="text-3xl font-bold text-[#2D7FF9] mb-2">
+                    🎓
+                  </Text>
+                  <Text className="text-lg font-semibold text-[#23235F]">
+                    Courses Enrolled
+                  </Text>
+                  <Text className="text-2xl font-bold text-[#23235F] mt-2">
+                    {enrolledCourses.length}
+                  </Text>
+                </View>
+                <View className="bg-white rounded-2xl shadow p-6 min-w-[180px] max-w-[260px] flex-1 items-center">
+                  <Text className="text-3xl font-bold text-[#2DC97A] mb-2">
+                    ⏳
+                  </Text>
+                  <Text className="text-lg font-semibold text-[#23235F]">
+                    Continue Learning
+                  </Text>
+                  <Text className="text-base text-[#23235F] mt-2">
+                    Pick up where you left off!
+                  </Text>
+                </View>
               </View>
-              <View className="flex-1 bg-white border border-[#e3f0fa] rounded-xl p-5 items-center">
-                <Ionicons name="albums-outline" size={28} color="#2D7FF9" />
-                <Text className="text-2xl font-bold text-[#222] mt-2">4</Text>
-                <Text className="text-xs text-gray-500 mt-1">
-                  Courses in progress
-                </Text>
-                <Text className="text-xs text-gray-400 mt-1">Total</Text>
-              </View>
+              {/* Continue Learning Card (show first enrolled course if any) */}
+              {enrolledCourses.length > 0 && (
+                <View className="bg-[#e3f0fa] rounded-2xl p-6 flex-row items-center gap-6 max-w-[700px] mx-auto">
+                  {/* Robust image extraction for continue learning card */}
+                  {(() => {
+                    const course = enrolledCourses[0].course;
+                    let imgUrl: string | undefined = undefined;
+                    if (
+                      course.image &&
+                      typeof course.image === "object" &&
+                      course.image.url
+                    ) {
+                      imgUrl = course.image.url.startsWith("http")
+                        ? course.image.url
+                        : `http://192.168.31.180:1337${course.image.url}`;
+                    } else if (
+                      course.image &&
+                      typeof course.image === "object" &&
+                      course.image.formats?.thumbnail?.url
+                    ) {
+                      imgUrl = `http://192.168.31.180:1337${course.image.formats.thumbnail.url}`;
+                    } else if (
+                      typeof course.image === "string" &&
+                      course.image.startsWith("http")
+                    ) {
+                      imgUrl = course.image;
+                    } else if (
+                      typeof course.image === "string" &&
+                      course.image.length > 0
+                    ) {
+                      imgUrl = `http://192.168.31.180:1337${course.image}`;
+                    } else {
+                      imgUrl = undefined;
+                    }
+                    return (
+                      <Image
+                        source={
+                          typeof imgUrl === "string" ? { uri: imgUrl } : imgUrl
+                        }
+                        className="w-24 h-24 rounded-xl bg-white border border-[#B9B9B9]"
+                        resizeMode="cover"
+                      />
+                    );
+                  })()}
+                  <View className="flex-1">
+                    <Text className="text-lg font-bold text-[#23235F] mb-1">
+                      {enrolledCourses[0].course?.title}
+                    </Text>
+                    <Text className="text-sm text-[#666] mb-2">
+                      Progress: {enrolledCourses[0].finished_percentage || 0}%
+                    </Text>
+                    <TouchableOpacity
+                      className="bg-[#2D7FF9] rounded-full px-6 py-2 self-start"
+                      onPress={() =>
+                        router.push({
+                          pathname: "/courses/[slug]",
+                          params: { slug: enrolledCourses[0].course?.slug },
+                        })
+                      }
+                    >
+                      <Text className="text-white font-semibold text-sm">
+                        Continue Learning →
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
-            <View className="flex-row space-x-4">
-              <View className="flex-1 bg-white border border-[#e3f0fa] rounded-xl p-5 items-center">
-                <Ionicons name="ribbon-outline" size={28} color="#2D7FF9" />
-                <Text className="text-2xl font-bold text-[#222] mt-2">12</Text>
-                <Text className="text-xs text-gray-500 mt-1">
-                  Certificates earned
-                </Text>
-                <Text className="text-xs text-gray-400 mt-1">Total</Text>
-              </View>
-              <View className="flex-1 bg-white border border-[#e3f0fa] rounded-xl p-5 items-center">
-                <Ionicons name="trophy-outline" size={28} color="#2D7FF9" />
-                <Text className="text-2xl font-bold text-[#222] mt-2">85%</Text>
-                <Text className="text-xs text-gray-500 mt-1">
-                  Average score
-                </Text>
-                <Text className="text-xs text-gray-400 mt-1">Current</Text>
-              </View>
-            </View>
-          </View>
-          {/* Desktop: 4 in a row */}
-          <View className="hidden md:flex flex-1 flex-row md:space-x-4 space-y-0">
-            <View className="flex-1 bg-white border border-[#e3f0fa] rounded-xl p-5 items-center">
-              <Ionicons name="time-outline" size={28} color="#2D7FF9" />
-              <Text className="text-2xl font-bold text-[#222] mt-2">12.5h</Text>
-              <Text className="text-xs text-gray-500 mt-1">Learning time</Text>
-              <Text className="text-xs text-gray-400 mt-1">This week</Text>
-            </View>
-            <View className="flex-1 bg-white border border-[#e3f0fa] rounded-xl p-5 items-center">
-              <Ionicons name="albums-outline" size={28} color="#2D7FF9" />
-              <Text className="text-2xl font-bold text-[#222] mt-2">4</Text>
-              <Text className="text-xs text-gray-500 mt-1">
-                Courses in progress
-              </Text>
-              <Text className="text-xs text-gray-400 mt-1">Total</Text>
-            </View>
-            <View className="flex-1 bg-white border border-[#e3f0fa] rounded-xl p-5 items-center">
-              <Ionicons name="ribbon-outline" size={28} color="#2D7FF9" />
-              <Text className="text-2xl font-bold text-[#222] mt-2">12</Text>
-              <Text className="text-xs text-gray-500 mt-1">
-                Certificates earned
-              </Text>
-              <Text className="text-xs text-gray-400 mt-1">Total</Text>
-            </View>
-            <View className="flex-1 bg-white border border-[#e3f0fa] rounded-xl p-5 items-center">
-              <Ionicons name="trophy-outline" size={28} color="#2D7FF9" />
-              <Text className="text-2xl font-bold text-[#222] mt-2">85%</Text>
-              <Text className="text-xs text-gray-500 mt-1">Average score</Text>
-              <Text className="text-xs text-gray-400 mt-1">Current</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Continue Learning */}
-        <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-lg font-bold text-gray-900">
-            Continue Learning
-          </Text>
-          <TouchableOpacity>
-            <Text className="text-[#2D7FF9] font-semibold">
-              View all courses
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          className="flex-row space-x-4"
-        >
-          {/* Card 1 */}
-          <View className="bg-white rounded-xl border border-[#e3f0fa] w-72 mr-4">
-            <Image
-              source={{
-                uri: "https://dummyimage.com/320x120/2d7ff9/fff&text=Practical+Graphic+Design",
-              }}
-              className="w-full h-28 rounded-t-xl"
-              resizeMode="cover"
-            />
-            <View className="p-4">
-              <Text className="font-bold text-base text-[#222] mb-1">
-                The Complete AI Guide: Learn ChatGPT
-              </Text>
-              <Text className="text-xs text-gray-500 mb-2">
-                65% completed · Last visited 2 days ago
-              </Text>
-              <TouchableOpacity className="bg-[#2D7FF9] rounded-lg py-2 flex-row items-center justify-center">
-                <Ionicons name="play-circle-outline" size={18} color="#fff" />
-                <Text className="text-white font-bold ml-2">
-                  Continue Learning
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          {/* Card 2 */}
-          <View className="bg-white rounded-xl border border-[#e3f0fa] w-72 mr-4">
-            <Image
-              source={{
-                uri: "https://dummyimage.com/320x120/222/fff&text=Copywriting",
-              }}
-              className="w-full h-28 rounded-t-xl"
-              resizeMode="cover"
-            />
-            <View className="p-4">
-              <Text className="font-bold text-base text-[#222] mb-1">
-                Advanced Copywriting Techniques
-              </Text>
-              <Text className="text-xs text-gray-500 mb-2">
-                45% completed · Last visited 5 days ago
-              </Text>
-              <TouchableOpacity className="bg-[#2D7FF9] rounded-lg py-2 flex-row items-center justify-center">
-                <Ionicons name="play-circle-outline" size={18} color="#fff" />
-                <Text className="text-white font-bold ml-2">
-                  Continue Learning
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          {/* Card 3 */}
-          <View className="bg-white rounded-xl border border-[#e3f0fa] w-72">
-            <Image
-              source={{
-                uri: "https://dummyimage.com/320x120/fff/222&text=Notion",
-              }}
-              className="w-full h-28 rounded-t-xl"
-              resizeMode="cover"
-            />
-            <View className="p-4">
-              <Text className="font-bold text-base text-[#222] mb-1">
-                Notion Masterclass: Maximise Your Workflow
-              </Text>
-              <Text className="text-xs text-gray-500 mb-2">
-                25% completed · Last visited 1 week ago
-              </Text>
-              <TouchableOpacity className="bg-[#2D7FF9] rounded-lg py-2 flex-row items-center justify-center">
-                <Ionicons name="play-circle-outline" size={18} color="#fff" />
-                <Text className="text-white font-bold ml-2">
-                  Continue Learning
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
+          </>
+        )}
       </ScrollView>
     </View>
   );

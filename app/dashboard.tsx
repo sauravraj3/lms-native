@@ -1,5 +1,5 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import React from "react";
+import React, { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 
 import DashboardUi from "../components/dashboard/dashboardUi"; // Adjust the path if needed
@@ -7,6 +7,12 @@ import DashboardUi from "../components/dashboard/dashboardUi"; // Adjust the pat
 export default function Dashboard() {
   const { user } = useUser();
   const { signOut } = useAuth();
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && typeof document !== "undefined") {
+      document.title = "Dashboard";
+    }
+  }, []);
 
   return (
     <View style={{ flex: 1 }}>

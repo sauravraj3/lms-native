@@ -45,7 +45,7 @@ export default function FeaturedCourses() {
 
   useEffect(() => {
     axios
-      .get("http://192.168.1.5:1337/api/courses?populate=image")
+      .get("http://192.168.31.180:1337/api/courses?populate=image")
       .then((res) => {
         setCourses(res.data?.data || []);
       })
@@ -84,14 +84,21 @@ export default function FeaturedCourses() {
             className="flex-row mb-8 w-full justify-center gap-4"
           >
             {row.map((course) => {
-              // Get image URL if available
+              // Prefer thumbnail, fallback to main image
               let imgUrl: string | undefined = undefined;
-              if (course.image && course.image.url) {
+              if (course.image && course.image.formats?.thumbnail?.url) {
+                imgUrl = `http://192.168.31.180:1337${course.image.formats.thumbnail.url}`;
+              } else if (course.image && course.image.url) {
                 imgUrl = course.image.url.startsWith("http")
                   ? course.image.url
-                  : `http://192.168.1.5:1337${course.image.url}`;
-              } else if (course.image && course.image.formats?.thumbnail?.url) {
-                imgUrl = `http://192.168.1.5:1337${course.image.formats.thumbnail.url}`;
+                  : `http://192.168.31.180:1337${course.image.url}`;
+              }
+              if (!imgUrl) {
+                console.warn(
+                  "No image for course:",
+                  course.title,
+                  course.image
+                );
               }
 
               // Demo/fallback data for UI
@@ -153,7 +160,7 @@ export default function FeaturedCourses() {
                         </Text>
                       </View>
                       <Text className="text-[#23235F] font-semibold text-base">
-                        {price}
+                        ₹{price}
                       </Text>
                     </View>
                     {/* Title */}

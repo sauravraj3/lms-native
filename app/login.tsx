@@ -1,9 +1,9 @@
 import { useStrapi } from "@/providers/StrapiProvider";
-import { useAuth, useOAuth } from "@clerk/clerk-expo";
+import { useAuth, useOAuth, useUser } from "@clerk/clerk-expo";
 import { AntDesign, FontAwesome } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { randomUUID } from "expo-crypto";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +17,7 @@ import {
 
 export default function Login() {
   const router = useRouter();
+  const params = useLocalSearchParams(); // <-- get params here
   const { isSignedIn, isLoaded } = useAuth();
   const { startOAuthFlow: startGoogleOAuthFlow } = useOAuth({
     strategy: "oauth_google",
@@ -25,13 +26,53 @@ export default function Login() {
     strategy: "oauth_apple",
   });
   const { createUser } = useStrapi();
+  const { user } = useUser();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      router.replace("/dashboard");
+    if (
+      isLoaded &&
+      isSignedIn &&
+      user?.primaryEmailAddress?.emailAddress &&
+      user?.id
+    ) {
+      // Create user in Strapi if needed
+      const email = user.primaryEmailAddress.emailAddress;
+      const username = email;
+      const password = randomUUID();
+      const id = user.id;
+
+      const strapiUser = {
+        email,
+        username,
+        password,
+        clerkId: id,
+      };
+
+      createUser(strapiUser).catch(() => {});
+
+      // Redirect logic
+      const redirectTo = params.redirectTo as string | undefined;
+      if (redirectTo) {
+        if (redirectTo.includes("?")) {
+          const [pathname, queryString] = redirectTo.split("?");
+          const paramObj: Record<string, string> = {};
+          if (queryString) {
+            queryString.split("&").forEach((pair) => {
+              const [key, value] = pair.split("=");
+              paramObj[key] = value;
+            });
+          }
+          router.replace({ pathname: pathname as any, params: paramObj });
+        } else {
+          router.replace(redirectTo as any);
+        }
+      } else {
+        router.replace("/dashboard");
+      }
     }
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, user]);
+
   const { width } = useWindowDimensions();
   const navigation = useNavigation();
   const isMobile = width < 600;
@@ -49,35 +90,12 @@ export default function Login() {
         strategy === "oauth_google"
           ? startGoogleOAuthFlow
           : startAppleOAuthFlow;
-      const { createdSessionId, setActive, signUp } = await startOAuthFlow();
+      const { createdSessionId, setActive } = await startOAuthFlow();
 
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
-
-        const email = signUp?.emailAddress;
-        const username = signUp?.emailAddress;
-        const password = randomUUID();
-        const id = signUp?.createdUserId;
-
-        if (!email || !username || !password || !id) {
-          throw new Error("Missing required fields");
-        }
-
-        const strapiUser = {
-          email,
-          username,
-          password,
-          clerkId: id,
-        };
-
-        try {
-          const result = await createUser(strapiUser);
-        } catch (strapiError) {
-          // Optionally handle error
-        }
-
-        router.replace("/dashboard");
       }
+      // Do NOT access user here! Post-login logic is handled in useEffect above.
     } catch (err) {
       console.error("OAuth error", err);
     } finally {

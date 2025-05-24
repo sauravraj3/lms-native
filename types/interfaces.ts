@@ -6,7 +6,7 @@ export interface Course {
   title: string;
   description: any;
   publishedAt: string;
-  image: string;
+  image: string | { url: string; formats?: any };
   slug: string;
   isPremium: boolean;
   lessons: Lesson[];
