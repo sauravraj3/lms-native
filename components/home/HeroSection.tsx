@@ -33,7 +33,7 @@ function HeroSection() {
   useEffect(() => {
     // Fetch from Strapi single type: homepage
     axios
-      .get("http://192.168.1.5:1337/api/homepage")
+      .get("http://192.168.31.180:1337/api/homepage")
       .then((res) => {
         const attrs = res.data?.data || {};
         setHighlightAboveTitle(attrs.highlightAboveTitle || "");
@@ -120,7 +120,7 @@ function HeroSection() {
                       ? {
                           uri: leftImage.startsWith("http")
                             ? leftImage
-                            : `http://localhost:1337${leftImage}`,
+                            : `http://192.168.31.180:1337${leftImage}`,
                         }
                       : student1
                   }
@@ -137,7 +137,7 @@ function HeroSection() {
                       ? {
                           uri: rightImage.startsWith("http")
                             ? rightImage
-                            : `http://localhost:1337${rightImage}`,
+                            : `http://192.168.31.180:1337${rightImage}`,
                         }
                       : student2
                   }

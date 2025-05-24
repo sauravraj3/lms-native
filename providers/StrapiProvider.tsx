@@ -32,7 +32,9 @@ interface StrapiContextType {
 const StrapiContext = createContext<StrapiContextType | undefined>(undefined);
 
 export function StrapiProvider({ children }: { children: ReactNode }) {
-  const baseUrl = process.env.EXPO_PUBLIC_STRAPI_API_URL as string;
+  const baseUrl =
+    process.env.EXPO_PUBLIC_STRAPI_API_URL || "http://192.168.31.180:1337";
+  console.log("[StrapiProvider] Using baseUrl:", baseUrl);
   const { user } = useUser();
   const queryClient = useQueryClient();
 
@@ -188,34 +190,79 @@ export function StrapiProvider({ children }: { children: ReactNode }) {
   };
 
   const addUserToCourse = async (courseId: string): Promise<UserCourses> => {
+    console.log("Current user in StrapiProvider:", user);
+    if (!user || !user.id) {
+      console.error("[addUserToCourse] No user or user.id found! User:", user);
+      throw new Error("User not authenticated or missing user id.");
+    }
     try {
       const body = {
-        courseId,
-        clerkId: user?.id,
+        data: {
+          course: Number(courseId), // relation to Course (should be numeric id)
+          clerkId: user.id,
+          finished_percentage: 0,
+          next_lesson_index: "",
+        },
       };
-
-      const response = await fetch(`/api/add-user-course`, {
+      const url = `${baseUrl}/api/user-courses`;
+      console.log("[addUserToCourse] POST URL:", url);
+      console.log("[addUserToCourse] POST BODY:", JSON.stringify(body));
+      // Log device IP for debugging
+      try {
+        console.log(
+          "[addUserToCourse] Device IP:",
+          (await (await fetch("https://api.ipify.org?format=json")).json()).ip
+        );
+      } catch (e) {
+        console.log("[addUserToCourse] Could not fetch device IP");
+      }
+      console.log(
+        "[addUserToCourse] FINAL POST BODY SENT TO STRAPI:",
+        JSON.stringify(body, null, 2)
+      );
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
       });
-
+      console.log("[addUserToCourse] Response status:", response.status);
+      const responseText = await response.text();
+      console.log("[addUserToCourse] Raw response text:", responseText);
       if (!response.ok) {
+        console.error("[addUserToCourse] Error response:", responseText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      const result = JSON.parse(responseText);
+      console.log("[addUserToCourse] Parsed response:", result);
       queryClient.invalidateQueries({ queryKey: ["userCourses"] });
-      const result = await response.json();
       return result;
     } catch (error) {
+      console.error("[addUserToCourse] Network or logic error:", error);
+      console.error("[addUserToCourse] Troubleshooting tips: ");
+      console.error(
+        "- Is your Strapi server running and accessible at the LAN IP from your device?"
+      );
+      console.error(
+        "- Is your device/emulator on the same WiFi network as your server?"
+      );
+      console.error(
+        "- Is your Strapi CORS config set to allow requests from your app?"
+      );
+      console.error(
+        "- Are you using the correct course id (should be a Strapi numeric id, not a UID)?"
+      );
+      console.error(
+        "- Try opening the URL in your device's browser to check connectivity."
+      );
       throw error;
     }
   };
 
   const getUserCourses = async (): Promise<UserCourses[]> => {
     try {
-      const url = `${baseUrl}/api/user-courses?filters[clerkId]=${user?.id}&populate[course][populate]=image`;
+      const url = `${baseUrl}/api/user-courses?filters[clerkId]=${user?.id}&populate=course`;
       const response = await fetch(encodeURI(url));
 
       if (!response.ok) {
@@ -223,9 +270,10 @@ export function StrapiProvider({ children }: { children: ReactNode }) {
       }
 
       const result = await response.json();
-      result.data.forEach((entry: any) => {
-        entry.course.image = `${entry.course.image.url}`;
-      });
+      // Optionally, handle course image population if needed
+      // result.data.forEach((entry: any) => {
+      //   entry.course.image = `${entry.course.image.url}`;
+      // });
       return result.data;
     } catch (error) {
       throw error;
