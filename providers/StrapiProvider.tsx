@@ -262,7 +262,8 @@ export function StrapiProvider({ children }: { children: ReactNode }) {
 
   const getUserCourses = async (): Promise<UserCourses[]> => {
     try {
-      const url = `${baseUrl}/api/user-courses?filters[clerkId]=${user?.id}&populate=course`;
+      // Deep populate course.image for enrolled courses
+      const url = `${baseUrl}/api/user-courses?filters[clerkId]=${user?.id}&populate[course][populate][image][populate]=*`;
       const response = await fetch(encodeURI(url));
 
       if (!response.ok) {
@@ -270,10 +271,6 @@ export function StrapiProvider({ children }: { children: ReactNode }) {
       }
 
       const result = await response.json();
-      // Optionally, handle course image population if needed
-      // result.data.forEach((entry: any) => {
-      //   entry.course.image = `${entry.course.image.url}`;
-      // });
       return result.data;
     } catch (error) {
       throw error;

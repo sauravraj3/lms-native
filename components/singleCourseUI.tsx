@@ -117,6 +117,51 @@ const fallbackCourse: Course = {
   ],
 };
 
+// Helper to render course description safely
+function renderCourseDescription(course: Course) {
+  if (typeof course.description === "string" && course.description.trim()) {
+    return (
+      <Text className="text-base text-gray-700 mb-4">{course.description}</Text>
+    );
+  } else if (
+    Array.isArray(course.description) &&
+    course.description.length > 0
+  ) {
+    return course.description.map((para: any, idx: number) => (
+      <Text key={idx} className="text-base text-gray-700 mb-2">
+        {para?.children?.map((child: any) => child.text).join(" ")}
+      </Text>
+    ));
+  } else if (
+    course.description &&
+    typeof course.description === "object" &&
+    (course.description as any).text
+  ) {
+    return (
+      <Text className="text-base text-gray-700 mb-4">
+        {(course.description as any).text}
+      </Text>
+    );
+  } else if (
+    course.description &&
+    typeof course.description === "object" &&
+    Array.isArray((course.description as any).children)
+  ) {
+    return (course.description as any).children.map(
+      (child: any, idx: number) => (
+        <Text key={idx} className="text-base text-gray-700 mb-2">
+          {child.text}
+        </Text>
+      )
+    );
+  }
+  return (
+    <Text className="text-base text-gray-500 mb-4 italic">
+      No description available.
+    </Text>
+  );
+}
+
 export default function SingleCourseUI() {
   const { slug } = useLocalSearchParams();
   const [course, setCourse] = useState<Course>(fallbackCourse);
@@ -124,6 +169,7 @@ export default function SingleCourseUI() {
   const [activeLesson, setActiveLesson] = useState(0);
   const [enrolling, setEnrolling] = useState(false); // loading state for post-payment
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [expanded, setExpanded] = useState<number | null>(0); // <-- moved from inside render
   const { width } = useWindowDimensions();
   const isMobile = width < 800;
   const router = useRouter();
@@ -297,6 +343,28 @@ export default function SingleCourseUI() {
       });
   };
 
+  // Helper to format seconds/minutes
+  const formatTime = (secondsOrString: any) => {
+    if (!secondsOrString) return "";
+    if (typeof secondsOrString === "string") return secondsOrString;
+    const min = Math.floor(secondsOrString / 60);
+    const sec = secondsOrString % 60;
+    return `${min}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  // Only one section for now, as course.sections is not present
+  const sections = [
+    {
+      title: course.title + " Content",
+      lessons: course.lessons,
+      lectureCount: course.lessons?.length || 0,
+      totalTime: (course.lessons || []).reduce(
+        (acc, l) => acc + (l.duration || 0),
+        0
+      ),
+    },
+  ];
+
   if (loading) {
     return (
       <View className="flex-1 justify-center items-center bg-[#f7f9fa]">
@@ -328,57 +396,7 @@ export default function SingleCourseUI() {
               <Text className="text-2xl font-bold mb-2 text-[#23235F]">
                 {course.title}
               </Text>
-              {/* Robust description rendering for string, array, or object */}
-              {(() => {
-                if (
-                  typeof course.description === "string" &&
-                  course.description.trim()
-                ) {
-                  return (
-                    <Text className="text-base text-gray-700 mb-4">
-                      {course.description}
-                    </Text>
-                  );
-                } else if (
-                  Array.isArray(course.description) &&
-                  course.description.length > 0
-                ) {
-                  return course.description.map((para: any, idx: number) => (
-                    <Text key={idx} className="text-base text-gray-700 mb-2">
-                      {para?.children
-                        ?.map((child: any) => child.text)
-                        .join(" ")}
-                    </Text>
-                  ));
-                } else if (
-                  course.description &&
-                  typeof course.description === "object" &&
-                  (course.description as any).text
-                ) {
-                  return (
-                    <Text className="text-base text-gray-700 mb-4">
-                      {(course.description as any).text}
-                    </Text>
-                  );
-                } else if (
-                  course.description &&
-                  typeof course.description === "object" &&
-                  Array.isArray((course.description as any).children)
-                ) {
-                  return (course.description as any).children.map(
-                    (child: any, idx: number) => (
-                      <Text key={idx} className="text-base text-gray-700 mb-2">
-                        {child.text}
-                      </Text>
-                    )
-                  );
-                }
-                return (
-                  <Text className="text-base text-gray-500 mb-4 italic">
-                    No description available.
-                  </Text>
-                );
-              })()}
+              {renderCourseDescription(course)}
             </View>
             {/* Pricing column */}
             <View className="w-full md:w-3/12">
@@ -411,7 +429,7 @@ export default function SingleCourseUI() {
         </View>
         {/* Pricing and Enroll button for mobile only, nothing for desktop */}
         {/* Left/Main Section (lessons, etc) */}
-        <View className="flex-1 rounded-2xl p-6 mt-8 bg-white">
+        <View className="flex-1 rounded-2xl p-6 mt-8">
           <View className="flex flex-row items-center mb-4 gap-2 flex-wrap">
             <Text className="text-[#FF6B00] font-bold text-base">
               ★ {course.rating}
@@ -425,45 +443,77 @@ export default function SingleCourseUI() {
             </Text>
           </View>
 
-          {/* Lessons Tabbed Section */}
+          {/* Lessons Section (Accordion style like Udemy) */}
           {Array.isArray(course.lessons) && course.lessons.length > 0 && (
             <View className="mt-6">
               <Text className="font-bold text-lg mb-4 text-[#23235F]">
-                Lessons
+                Course content
               </Text>
-              {/* Tab headers */}
-              <View className="flex flex-row flex-wrap mb-4">
-                {course.lessons.map((lesson: any, idx: number) => (
-                  <Pressable
-                    key={lesson.id || idx}
-                    className={`px-4 py-2 mr-2 mb-2 rounded-t-lg ${
-                      activeLesson === idx
-                        ? "bg-[#23235F]"
-                        : "bg-[#F7F7FB] border border-[#E5E7EB]"
-                    }`}
-                    onPress={() => setActiveLesson(idx)}
-                  >
-                    <Text
-                      className={`text-sm font-semibold ${
-                        activeLesson === idx ? "text-white" : "text-[#23235F]"
-                      }`}
+              {/* Section summary (replace with real data if available) */}
+              <Text className="text-base text-gray-500 mb-4">
+                {/* Example: 1 section • 83 lectures • 5h 56m total length */}1
+                section • {course.lessons.length} lectures
+              </Text>
+              {/* Collapsible Sections */}
+              <View className="rounded-2xl overflow-hidden border border-gray-200 bg-white">
+                {sections.map((section: any, sIdx: number) => (
+                  <View key={sIdx}>
+                    <Pressable
+                      className="flex flex-row items-center justify-between px-4 py-3 border-b border-gray-100 bg-[#f7f9fa]"
+                      onPress={() =>
+                        setExpanded(expanded === sIdx ? null : sIdx)
+                      }
                     >
-                      {lesson.name || lesson.title || `Lesson ${idx + 1}`}
-                    </Text>
-                  </Pressable>
+                      <Text className="font-semibold text-base text-[#23235F]">
+                        {section.title}
+                      </Text>
+                      <Text className="text-xs text-gray-500 ml-2">
+                        {section.lectureCount} lectures
+                        {section.totalTime
+                          ? ` • ${formatTime(section.totalTime)}`
+                          : ""}
+                      </Text>
+                      <Text className="ml-2 text-[#2D7FF9] font-bold">
+                        {expanded === sIdx ? "▲" : "▼"}
+                      </Text>
+                    </Pressable>
+                    {expanded === sIdx && (
+                      <View className="bg-white">
+                        {section.lessons.map((lesson: any, lIdx: number) => (
+                          <Pressable
+                            key={lesson.id || lIdx}
+                            className="flex flex-row items-center px-6 py-2 border-b border-gray-100"
+                            onPress={() => {
+                              if (lesson.slug) {
+                                router.push(`/courses/lessons/${lesson.slug}`);
+                              } else {
+                                router.push(`/courses/lessons/${lesson.id}`);
+                              }
+                            }}
+                          >
+                            {/* Icon: video or file */}
+                            <Text className="mr-3 text-lg">
+                              {lesson.type === "pdf" || lesson.isDocument
+                                ? "📄"
+                                : "🎬"}
+                            </Text>
+                            <Text className="flex-1 text-base text-[#23235F]">
+                              {lesson.name ||
+                                lesson.title ||
+                                `Lesson ${lIdx + 1}`}
+                            </Text>
+                            <Text className="text-xs text-gray-500 ml-2">
+                              {lesson.pages
+                                ? `${lesson.pages} pages`
+                                : formatTime(lesson.duration)}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </View>
                 ))}
               </View>
-              {/* Tab content */}
-              {course.lessons[activeLesson] && (
-                <View className="p-4 bg-[#F7F7FB] rounded-b-lg">
-                  {course.lessons[activeLesson].description && (
-                    <Text className="text-sm text-gray-600 mt-1">
-                      {course.lessons[activeLesson].description}
-                    </Text>
-                  )}
-                  {/* Optionally show more lesson details here */}
-                </View>
-              )}
             </View>
           )}
         </View>
