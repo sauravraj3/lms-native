@@ -236,22 +236,49 @@ export default function DashboardUi() {
                 <View className="flex-row flex-wrap justify-center gap-4">
                   {enrolledCourses.map((uc) => {
                     const course = uc.course;
-                    // Robust image extraction logic for both string and object
+                    // Robust image extraction logic (matches FeaturedCourses.tsx, with type guards)
                     let imgUrl: string | undefined = undefined;
+                    // Strapi v4: image = { data: { attributes: { url, formats } } }
                     if (
                       course.image &&
                       typeof course.image === "object" &&
-                      course.image.url
+                      (course.image as any).data &&
+                      (course.image as any).data.attributes
                     ) {
-                      imgUrl = course.image.url.startsWith("http")
-                        ? course.image.url
-                        : `http://192.168.31.180:1337${course.image.url}`;
+                      const attrs = (course.image as any).data.attributes;
+                      if (
+                        attrs.formats &&
+                        attrs.formats.thumbnail &&
+                        attrs.formats.thumbnail.url
+                      ) {
+                        imgUrl = attrs.formats.thumbnail.url.startsWith("http")
+                          ? attrs.formats.thumbnail.url
+                          : `http://192.168.31.180:1337${attrs.formats.thumbnail.url}`;
+                      } else if (attrs.url) {
+                        imgUrl = attrs.url.startsWith("http")
+                          ? attrs.url
+                          : `http://192.168.31.180:1337${attrs.url}`;
+                      }
                     } else if (
                       course.image &&
                       typeof course.image === "object" &&
-                      course.image.formats?.thumbnail?.url
+                      (course.image as any).formats &&
+                      (course.image as any).formats.thumbnail?.url
                     ) {
-                      imgUrl = `http://192.168.31.180:1337${course.image.formats.thumbnail.url}`;
+                      // Legacy object format
+                      imgUrl = `http://192.168.31.180:1337${
+                        (course.image as any).formats.thumbnail.url
+                      }`;
+                    } else if (
+                      course.image &&
+                      typeof course.image === "object" &&
+                      (course.image as any).url
+                    ) {
+                      imgUrl = (course.image as any).url.startsWith("http")
+                        ? (course.image as any).url
+                        : `http://192.168.31.180:1337${
+                            (course.image as any).url
+                          }`;
                     } else if (
                       typeof course.image === "string" &&
                       course.image.startsWith("http")
@@ -262,9 +289,19 @@ export default function DashboardUi() {
                       course.image.length > 0
                     ) {
                       imgUrl = `http://192.168.31.180:1337${course.image}`;
-                    } else {
-                      imgUrl = undefined;
                     }
+                    // Fallback/default image if none present
+                    if (!imgUrl) {
+                      imgUrl =
+                        "https://images.unsplash.com/photo-1506744038136-46273834b3fb"; // fallback image
+                    }
+                    // Debug: log the resolved image URL and course.image
+                    console.log("[ENROLLED COURSE IMAGE]", {
+                      imgUrl,
+                      courseImage: course.image,
+                      courseTitle: course.title,
+                      fullCourse: course,
+                    });
                     // Fallbacks for category/price
                     const category = (course as any).category || "";
                     const price = (course as any).price || "";
@@ -284,11 +321,7 @@ export default function DashboardUi() {
                         <View className="relative w-full h-40 rounded-t-2xl overflow-hidden">
                           {imgUrl && (
                             <Image
-                              source={
-                                typeof imgUrl === "string"
-                                  ? { uri: imgUrl }
-                                  : imgUrl
-                              }
+                              source={{ uri: imgUrl }}
                               className="w-full h-full"
                               resizeMode="cover"
                             />
