@@ -1,3 +1,4 @@
+import { useAuth } from "@clerk/clerk-expo";
 import axios from "axios";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -42,6 +43,7 @@ export default function FeaturedCourses() {
   const [loading, setLoading] = useState(true);
   const { width } = useWindowDimensions();
   const router = useRouter();
+  const { isSignedIn, isLoaded } = useAuth();
 
   useEffect(() => {
     axios
@@ -71,6 +73,19 @@ export default function FeaturedCourses() {
       </View>
     );
   }
+
+  // Handler for course click with login check
+  const handleCourseClick = (slug: string) => {
+    if (!isLoaded) return; // Don't do anything until auth is loaded
+    if (!isSignedIn) {
+      router.push({
+        pathname: "/login",
+        params: { redirectTo: `/courses/${slug}` },
+      });
+      return;
+    }
+    router.push({ pathname: "/courses/[slug]", params: { slug } });
+  };
 
   return (
     <View className="container-fluid w-full px-2 py-6">
@@ -118,14 +133,7 @@ export default function FeaturedCourses() {
                 <TouchableOpacity
                   key={course.id}
                   activeOpacity={0.9}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/courses/[slug]",
-                      params: {
-                        slug: course.slug,
-                      },
-                    })
-                  }
+                  onPress={() => handleCourseClick(course.slug)}
                   className="flex-1 max-w-[350px] min-w-[280px] mx-2 bg-white rounded-2xl border border-dashed border-[#B9B9B9] p-0 shadow-sm"
                 >
                   {/* Course Image */}
@@ -188,12 +196,7 @@ export default function FeaturedCourses() {
                     <View className="flex-row items-center justify-start">
                       <TouchableOpacity
                         className="bg-[#23235F] rounded-full px-6 py-2"
-                        onPress={() =>
-                          router.push({
-                            pathname: "/courses/[slug]",
-                            params: { slug: course.slug },
-                          })
-                        }
+                        onPress={() => handleCourseClick(course.slug)}
                       >
                         <Text className="text-white font-semibold text-sm">
                           Enroll →

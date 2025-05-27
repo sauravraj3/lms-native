@@ -1,4 +1,3 @@
-import { useAuth, useUser } from "@clerk/clerk-expo";
 import axios from "axios";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -169,15 +168,12 @@ export default function SingleCourseUI() {
   const [activeLesson, setActiveLesson] = useState(0);
   const [enrolling, setEnrolling] = useState(false); // loading state for post-payment
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [expanded, setExpanded] = useState<number | null>(0); // <-- moved from inside render
+  const [expanded, setExpanded] = useState<number | null>(0);
+  const [alreadyEnrolled, setAlreadyEnrolled] = useState(false); // <-- new state
   const { width } = useWindowDimensions();
   const isMobile = width < 800;
   const router = useRouter();
-  const { isSignedIn, isLoaded } = useAuth();
-  const { user } = useUser();
-  const { signOut } = useAuth();
-  const isLoggedIn = isSignedIn && isLoaded;
-  const { addUserToCourse } = useStrapi();
+  const { addUserToCourse, userHasCourse } = useStrapi(); // <-- get userHasCourse
 
   useEffect(() => {
     if (!slug) return;
@@ -236,6 +232,15 @@ export default function SingleCourseUI() {
                   })
                 : fallbackCourse.lastUpdated,
             });
+            // Check if user is already enrolled
+            const courseId = apiData.documentId || apiData.id?.toString() || "";
+            if (courseId) {
+              userHasCourse(courseId)
+                .then((enrolled) => setAlreadyEnrolled(enrolled))
+                .catch(() => setAlreadyEnrolled(false));
+            } else {
+              setAlreadyEnrolled(false);
+            }
           })
           .catch(() => {
             setCourse({
@@ -243,14 +248,16 @@ export default function SingleCourseUI() {
               ...apiData,
               lessons: [],
             });
+            setAlreadyEnrolled(false);
           })
           .finally(() => setLoading(false));
       })
       .catch(() => {
         setCourse(fallbackCourse);
         setLoading(false);
+        setAlreadyEnrolled(false);
       });
-  }, [slug]);
+  }, [slug, userHasCourse]);
 
   useEffect(() => {
     if (course && course.title) {
@@ -266,16 +273,6 @@ export default function SingleCourseUI() {
       course.price && course.price !== "Free" && course.price !== "0";
     if (!isPremium) {
       // Handle free enrollment logic here
-      return;
-    }
-
-    // Check if user is logged in
-    if (!isLoggedIn) {
-      // Redirect to login, then bring them back to this course page
-      router.push({
-        pathname: "/login",
-        params: { redirectTo: `/courses/${slug}` },
-      });
       return;
     }
 
@@ -408,12 +405,18 @@ export default function SingleCourseUI() {
                   {course.oldPrice}
                 </Text>
                 <TouchableOpacity
-                  className="bg-[#2D7FF9] py-3 rounded-xl mb-3 w-full"
+                  className={`bg-[#2D7FF9] py-3 rounded-xl mb-3 w-full ${
+                    alreadyEnrolled ? "opacity-60" : ""
+                  }`}
                   onPress={handleEnroll}
-                  disabled={enrolling}
+                  disabled={enrolling || alreadyEnrolled}
                 >
                   <Text className="text-white text-center font-bold text-base">
-                    {enrolling ? "Enrolling..." : "Enroll Now"}
+                    {alreadyEnrolled
+                      ? "Already Enrolled"
+                      : enrolling
+                      ? "Enrolling..."
+                      : "Enroll Now"}
                   </Text>
                 </TouchableOpacity>
                 <View className="mb-3">
